@@ -23,6 +23,35 @@ from assets.mesh_distance import compute_move_mesh_distance
 from utils.renderer import SimRenderer
 
 
+# Profiling code
+import cProfile
+import pstats
+from functools import wraps
+
+def profile_function(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        profiler = cProfile.Profile()
+        try:
+            return profiler.runcall(func, *args, **kwargs)
+        finally:
+            stats = pstats.Stats(profiler)
+            stats.sort_stats('cumulative')
+            print(f"\nProfile for {func.__name__}:")
+            stats.print_stats(20)
+    return wrapper
+
+def time_function(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time()
+        result = func(*args, **kwargs)
+        end_time = time()
+        print(f"{func.__name__} took {end_time - start_time:.2f} seconds")
+        return result
+    return wrapper
+
+
 class State:
 
     def __init__(self, q, qdot):
@@ -77,6 +106,7 @@ class Tree:
             else:
                 state = in_edge[0]
 
+    @time_function
     def get_path(self, start_state, end_state):
         path = []
         state = end_state
@@ -188,9 +218,13 @@ def unit_vector(vector):
 
 
 class PhysicsPlanner:
-
+    @time_function
     def __init__(self, asset_folder, assembly_dir, move_id, still_ids, 
         rotation=False, body_type='bvh', sdf_dx=0.05, collision_th=0.01, force_mag=1e3, frame_skip=100, save_sdf=False):
+
+        # Timing
+        # Note: The redmax code (Simulator) seems to take more time than everything else.
+        cur_time = time()
 
         # calculate collision threshold
         meshes, names = load_assembly(assembly_dir, return_names=True)
@@ -198,6 +232,7 @@ class PhysicsPlanner:
         still_meshes = []
         for mesh, name in zip(meshes, names):
             obj_id = name.replace('.obj', '')
+            # The below line takes 15 seconds everytime.
             if body_type == 'bvh':
                 phys_mesh = redmax.BVHMesh(mesh.vertices.T, mesh.faces.T)
             elif body_type == 'sdf':
@@ -211,6 +246,9 @@ class PhysicsPlanner:
         
         min_d = compute_move_mesh_distance(move_mesh, still_meshes, state=np.zeros(3))
         collision_th = max(-min_d, 0) + collision_th
+
+        print(f"Time taken to determine collision threshold: {time() - cur_time}")
+        cur_time = time()
         
         # build simulation
         move_joint_type = 'free3d-exp' if rotation else 'translational'
@@ -220,6 +258,9 @@ class PhysicsPlanner:
         self.ndof = 6 if rotation else 3
         self.force_mag = force_mag
         self.frame_skip = frame_skip
+
+        print(f"Time taken to build simulation: {time() - cur_time}")
+        cur_time = time()
 
         # names
         self.move_id, self.still_ids = move_id, still_ids
@@ -237,6 +278,9 @@ class PhysicsPlanner:
         self.E0i_move = self.sim.get_body_E0i(self.move_name)
         self.E0is_still = [self.sim.get_body_E0i(still_name) for still_name in self.still_names]
 
+        print(f"Time taken for collision check: {time() - cur_time}")
+        cur_time = time()
+
         # state bounds
         self.min_box_move = self.vertices_move.min(axis=0)
         self.max_box_move = self.vertices_move.max(axis=0)
@@ -246,6 +290,9 @@ class PhysicsPlanner:
         self.size_box_still = self.max_box_still - self.min_box_still
         self.state_lower_bound = (self.min_box_still - self.max_box_move) - 0.5 * self.size_box_move
         self.state_upper_bound = (self.max_box_still - self.min_box_move) + 0.5 * self.size_box_move
+
+        print(f"Time taken to set bounds: {time() - cur_time}")
+        cur_time = time()
 
     def get_state(self):
         q = self.sim.get_joint_q(self.move_name)
@@ -322,6 +369,7 @@ class PhysicsPlanner:
     def save_path(self, path, save_dir, n_save_state):
         save_path(save_dir, path, n_frame=n_save_state)
 
+    @profile_function
     def plan(self, max_time, seed=1, return_path=False, render=False, record_path=None):
 
         self.seed(seed)
@@ -454,6 +502,7 @@ class BFSPlanner(PhysicsPlanner):
                 return True
         return False
 
+    @time_function
     def min_dist(self, path, new_state):
         if self.rotation:
             min_dist_trans, min_dist_rot = np.inf, np.inf
@@ -508,6 +557,7 @@ class BFSPlanner(PhysicsPlanner):
         else:
             return self.plan_trans(*args, **kwargs)
 
+    @profile_function
     def plan_trans(self, max_time, max_depth=None, seed=1, return_path=False, render=False, record_path=None):
 
         self.seed(seed)
@@ -586,6 +636,7 @@ class BFSPlanner(PhysicsPlanner):
 
         return (status, t_plan, path) if return_path else (status, t_plan)
 
+    @profile_function
     def plan_rot(self, max_time, max_depth=None, seed=1, return_path=False, render=False, record_path=None):
 
         self.seed(seed)

@@ -11,6 +11,40 @@ sys.path.append(project_base_dir)
 import numpy as np
 from assets.transform import get_transform_matrix, transform_pts_by_matrix
 
+# Profiling code
+import cProfile
+import pstats
+from functools import wraps
+import time
+
+
+def profile_function(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        profiler = cProfile.Profile()
+        try:
+            return profiler.runcall(func, *args, **kwargs)
+        finally:
+            stats = pstats.Stats(profiler)
+            stats.sort_stats("cumulative")
+            print(f"\nProfile for {func.__name__}:")
+            stats.print_stats(20)
+
+    return wrapper
+
+
+def time_function(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print(f"{func.__name__} took {end_time - start_time:.2f} seconds")
+        return result
+
+    return wrapper
+
+
 
 def compute_all_mesh_distance(meshes, states):
     '''
@@ -36,6 +70,7 @@ def compute_all_mesh_distance(meshes, states):
     return d
 
 
+@time_function
 def compute_move_mesh_distance(move_mesh, still_meshes, state):
     '''
     Compute the minimum distance between meshes at certain states

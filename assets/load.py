@@ -14,6 +14,39 @@ import trimesh
 from assets.color import get_color
 from assets.transform import get_transform_matrix, transform_pts_by_state
 
+# Profiling code
+import cProfile
+import pstats
+from functools import wraps
+import time
+
+
+def profile_function(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        profiler = cProfile.Profile()
+        try:
+            return profiler.runcall(func, *args, **kwargs)
+        finally:
+            stats = pstats.Stats(profiler)
+            stats.sort_stats("cumulative")
+            print(f"\nProfile for {func.__name__}:")
+            stats.print_stats(20)
+
+    return wrapper
+
+
+def time_function(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print(f"{func.__name__} took {end_time - start_time:.2f} seconds")
+        return result
+
+    return wrapper
+
 
 def load_translation(obj_dir, rotvec=None):
     '''
@@ -76,6 +109,7 @@ def load_part_ids(obj_dir):
     return obj_ids
 
 
+@time_function
 def load_assembly(obj_dir, translate=True, rotvec=None, return_names=False):
     '''
     Load the entire assembly from dir

@@ -13,6 +13,36 @@ from assets.save import clear_saved_sdfs
 from run_joint_plan import get_planner as get_path_planner
 
 
+# Profiling code
+import cProfile
+import pstats
+from functools import wraps
+import time
+
+def profile_function(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        profiler = cProfile.Profile()
+        try:
+            return profiler.runcall(func, *args, **kwargs)
+        finally:
+            stats = pstats.Stats(profiler)
+            stats.sort_stats('cumulative')
+            print(f"\nProfile for {func.__name__}:")
+            stats.print_stats(20)
+    return wrapper
+
+def time_function(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print(f"{func.__name__} took {end_time - start_time:.2f} seconds")
+        return result
+    return wrapper
+
+
 class SequencePlanner:
 
     def __init__(self, asset_folder, assembly_dir):
@@ -42,9 +72,11 @@ class SequencePlanner:
         nx.draw(self.graph, with_labels=True)
         plt.show()
 
+    @profile_function
     def plan_sequence(self, *args, **kwargs):
         raise NotImplementedError
 
+    @profile_function
     def plan_path(self, move_id, still_ids, planner_name, rotation, body_type, sdf_dx, collision_th, force_mag, frame_skip,
         max_time, seed, render, record_path, save_dir, n_save_state, return_contact=False):
 
@@ -68,6 +100,7 @@ class SequencePlanner:
 
 class RandomSequencePlanner(SequencePlanner):
 
+    @profile_function
     def plan_sequence(self, path_planner_name, rotation, body_type, sdf_dx, collision_th, force_mag, frame_skip,
         seq_max_time, path_max_time, seed, render, record_dir, save_dir, n_save_state, verbose=False):
 
@@ -137,6 +170,7 @@ class RandomSequencePlanner(SequencePlanner):
 
 class QueueSequencePlanner(SequencePlanner):
 
+    @profile_function
     def plan_sequence(self, path_planner_name, rotation, body_type, sdf_dx, collision_th, force_mag, frame_skip,
         seq_max_time, path_max_time, seed, render, record_dir, save_dir, n_save_state, verbose=False):
 
@@ -225,6 +259,7 @@ class QueueSequencePlanner(SequencePlanner):
 
 class ProgressiveQueueSequencePlanner(SequencePlanner):
 
+    @profile_function
     def plan_path(self, move_id, still_ids, planner_name, rotation, body_type, sdf_dx, collision_th, force_mag, frame_skip,
         max_time, max_depth, seed, render, record_path, save_dir, n_save_state, return_contact=False):
 
@@ -245,6 +280,7 @@ class ProgressiveQueueSequencePlanner(SequencePlanner):
         else:
             return status, t_plan
 
+    @profile_function
     def plan_sequence(self, path_planner_name, rotation, body_type, sdf_dx, collision_th, force_mag, frame_skip,
         seq_max_time, path_max_time, seed, render, record_dir, save_dir, n_save_state, verbose=False):
 
