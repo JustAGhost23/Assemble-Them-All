@@ -14,7 +14,7 @@ This repository contains the official code and dataset of [Assemble Them All: Ph
 
 - We provide instructions [here](https://github.com/yunshengtian/Assemble-Them-All#custom-assembly-usage) for applying the algorithm on your custom meshes (03/2023).
 
-**Important**: This repository is a fork of the original project, and includes simple profiling code for the algorithm. This was done as part of a research project.
+**Important**: This repository is a fork of the original project, and includes simple profiling code for the algorithm used. This was done as part of a research project to improve upon this algorithm.
 
 ## Installation
 
